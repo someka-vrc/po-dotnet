@@ -1,8 +1,13 @@
 {
   "name": "po-dotnet",
   "displayName": "po-dotnet",
-  "description": "show .po translaion when hover on localize method in .NET project",
+  "description": "show .po translation when hover on localize method in .NET project",
   "version": "0.0.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/someka-vrc/po-dotnet.git"
+  },
   "engines": {
     "vscode": "^1.108.1"
   },
@@ -13,8 +18,7 @@
     "onLanguage:csharp"
   ],
   "main": "./out/extension.js",
-  "contributes": {
-  },
+  "contributes": {},
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
