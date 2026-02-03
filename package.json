@@ -14,21 +14,6 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "configuration": {
-      "title": "My PO Hover Settings",
-      "properties": {
-        "poHover.poFileGlob": {
-          "type": "string",
-          "default": "Assets/SomekaVrcUnityExtension/Mofufuku/Editor/Localization/*.po",
-          "description": "POファイルのパス（Glob形式）"
-        },
-        "poHover.functionName": {
-          "type": "string",
-          "default": "G",
-          "description": "対象とする関数名"
-        }
-      }
-    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

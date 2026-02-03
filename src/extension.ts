@@ -20,80 +20,51 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.window.showInformationMessage('Hello World from po-dotnet!');
 	});
 
-	// PO manager handles scanning, parsing and watching PO files
+	// PO manager handles scanning, parsing and watching PO directories (no globs)
 	class POManager {
-		private cache = new Map<string, Map<string, string>>();
-		private watcher?: vscode.FileSystemWatcher;
-		private glob: string;
-		private initializing = false;
-		private initTimer?: ReturnType<typeof setTimeout>;
+		private cache = new Map<string, Map<string, string>>(); // uri -> map
+		private watchers = new Map<string, vscode.FileSystemWatcher>(); // dir -> watcher
 		constructor(private context: vscode.ExtensionContext) {
-			this.glob = vscode.workspace.getConfiguration('poHover').get('poFileGlob', '**/Locales/*.po');
-			vscode.workspace.onDidChangeConfiguration(e => {
-				if (e.affectsConfiguration('poHover.poFileGlob')) {
-					const newGlob = vscode.workspace.getConfiguration('poHover').get('poFileGlob', '**/Locales/*.po');
-					if (newGlob !== this.glob) {
-						this.glob = newGlob;
-						this.scheduleInitialize(200);
-					}
-				}
-			}, this, this.context.subscriptions);
-
-			// setup watcher immediately so we observe file changes ASAP (non-blocking)
-			this.setupWatcher();
-			// schedule initial scan asynchronously with a short delay
-			this.scheduleInitialize(200);
 		}
 
 		public dispose() {
-			if (this.watcher) { this.watcher.dispose(); this.watcher = undefined; }
-			if (this.initTimer) { clearTimeout(this.initTimer as any); this.initTimer = undefined; }
+			for (const w of this.watchers.values()) { w.dispose(); }
+			this.watchers.clear();
 		}
 
-		private scheduleInitialize(delay = 200) {
-			if (this.initTimer) { clearTimeout(this.initTimer as any); }
-			this.initTimer = setTimeout(() => { void this.initialize(); }, delay);
-		}
-
-		public ensureInitialized() {
-			if (!this.initializing && this.cache.size === 0) {
-				this.scheduleInitialize(0);
+		public async ensureDirs(dirs: string[], workspaceFolder: vscode.WorkspaceFolder | null) {
+			if (!workspaceFolder) return;
+			for (const dir of dirs) {
+				if (this.watchers.has(dir)) continue;
+				// create watcher for the directory
+				try {
+					const rel = path.relative(workspaceFolder.uri.fsPath, dir).replace(/\\/g, '/');
+					const pattern = new vscode.RelativePattern(workspaceFolder, rel + '/**/*.po');
+					const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+					this.context.subscriptions.push(watcher);
+					watcher.onDidCreate(uri => this.readAndParse(uri));
+					watcher.onDidChange(uri => this.readAndParse(uri));
+					watcher.onDidDelete(uri => this.cache.delete(uri.toString()));
+					this.watchers.set(dir, watcher);
+					// initial scan
+					await this.scanDir(dir, workspaceFolder);
+				} catch (e) {
+					console.error('po-dotnet: failed to watch/scan dir', dir, e);
+				}
 			}
 		}
 
-		private async initialize() {
-			if (this.initializing) return;
-			this.initializing = true;
-			console.log('po-dotnet: starting PO scan (async)...');
+		private async scanDir(dir: string, workspaceFolder: vscode.WorkspaceFolder) {
 			try {
-				await this.scanFiles();
-			} catch (e) {
-				console.error('Error scanning PO files', e);
-			} finally {
-				this.initializing = false;
-				console.log('po-dotnet: PO scan finished');
-			}
-		}
-
-		private async scanFiles() {
-			this.cache.clear();
-			try {
-				const uris = await vscode.workspace.findFiles(this.glob);
+				const rel = path.relative(workspaceFolder.uri.fsPath, dir).replace(/\\/g, '/');
+				const pattern = new vscode.RelativePattern(workspaceFolder, rel + '/**/*.po');
+				const uris = await vscode.workspace.findFiles(pattern);
 				for (const uri of uris) {
 					await this.readAndParse(uri);
 				}
 			} catch (e) {
-				console.error('Error scanning PO files', e);
+				console.error('po-dotnet: error scanning dir', dir, e);
 			}
-		}
-
-		private setupWatcher() {
-			if (this.watcher) { this.watcher.dispose(); }
-			this.watcher = vscode.workspace.createFileSystemWatcher(this.glob);
-			this.context.subscriptions.push(this.watcher);
-			this.watcher.onDidCreate(uri => this.readAndParse(uri));
-			this.watcher.onDidChange(uri => this.readAndParse(uri));
-			this.watcher.onDidDelete(uri => this.cache.delete(uri.toString()));
 		}
 
 		private async readAndParse(uri: vscode.Uri) {
@@ -121,6 +92,45 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 			return results;
 		}
+	}
+
+	// collect podotnetconfig.json files by walking up from the document dir to workspace root
+	async function collectConfigsForDocument(documentUri: vscode.Uri) {
+		const ws = vscode.workspace.getWorkspaceFolder(documentUri);
+		if (!ws) return { sourceDirs: [] as string[], poDirs: [] as string[], workspaceFolder: null };
+		const sourceSet = new Set<string>();
+		const poSet = new Set<string>();
+		let dir = path.dirname(documentUri.fsPath);
+		const wsRoot = ws.uri.fsPath;
+		while (true) {
+			for (const name of ['podotnetconfig.json', 'podotnetconfig~.json']) {
+				const cfgUri = vscode.Uri.file(path.join(dir, name));
+				try {
+					const bytes = await vscode.workspace.fs.readFile(cfgUri);
+					const content = new TextDecoder('utf-8').decode(bytes);
+					const parsed = JSON.parse(content);
+					if (Array.isArray(parsed.sourceDirs)) {
+						for (const s of parsed.sourceDirs) {
+							const resolved = path.resolve(dir, s);
+							sourceSet.add(resolved);
+						}
+					}
+					if (Array.isArray(parsed.poDirs)) {
+						for (const p of parsed.poDirs) {
+							const resolved = path.resolve(dir, p);
+							poSet.add(resolved);
+						}
+					}
+				} catch (e) {
+					// no config here or parse error -- ignore
+				}
+			}
+			if (dir === wsRoot) break;
+			const parent = path.dirname(dir);
+			if (!parent || parent === dir) break;
+			dir = parent;
+		}
+		return { sourceDirs: Array.from(sourceSet), poDirs: Array.from(poSet), workspaceFolder: ws };
 	}
 
 	function parsePo(content: string): Map<string, string> {
@@ -214,7 +224,7 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push({ dispose: () => poManager.dispose() } as vscode.Disposable);
 
 	const hoverProvider = vscode.languages.registerHoverProvider('csharp', {
-		provideHover(document, position, token) {
+		async provideHover(document, position, token) {
 			const config = vscode.workspace.getConfiguration('poHover');
 			const target = config.get<string>('functionName', 'G');
 			if (!target) {
@@ -253,7 +263,12 @@ export function activate(context: vscode.ExtensionContext) {
 								const inside = text.substring(i + 1, j);
 								const msgid = extractFirstStringArgument(inside);
 								if (!msgid) return undefined;
-								poManager.ensureInitialized();
+								const cfg = await collectConfigsForDocument(document.uri);
+								if (cfg.sourceDirs.length === 0) return undefined; // no config found
+								const docPath = document.uri.fsPath;
+								const included = cfg.sourceDirs.some(sd => docPath === sd || docPath.startsWith(sd + path.sep));
+								if (!included) return undefined;
+								await poManager.ensureDirs(cfg.poDirs, cfg.workspaceFolder);
 								const entries = poManager.getTranslations(msgid);
 								const hoverLines: string[] = [];
 								hoverLines.push('po-dotnet');
