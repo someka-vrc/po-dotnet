@@ -22,12 +22,12 @@
     "commands": [
       {
         "command": "po-dotnet.createConfig",
-        "title": "PO .NET: Create podotnetconfig.json",
+        "title": "Create podotnetconfig.json",
         "category": "PO .NET"
       },
       {
         "command": "po-dotnet.openPoEntry",
-        "title": "PO .NET: Open PO entry",
+        "title": "Open PO entry",
         "category": "PO .NET"
       }
     ]
