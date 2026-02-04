@@ -273,7 +273,10 @@ export class LocalizationChecker implements vscode.Disposable {
             if (missingList.length > 0) {
               const startPos = document.positionAt(matchIndex);
               const endPos = document.positionAt(j + 1);
-              const message = `po-dotnet: missing PO entries: ${missingList.join(", ")}`;
+              const displayKey = msgid.replace(/\s+/g, " ").trim();
+              const truncatedKey =
+                displayKey.length > 16 ? displayKey.slice(0, 16) + "…" : displayKey;
+              const message = `Missing PO entries for '${truncatedKey}': ${missingList.join(", ")}`;
               const diag = new vscode.Diagnostic(
                 new vscode.Range(startPos, endPos),
                 message,
