@@ -5,6 +5,7 @@ import * as path from "path";
 import { POManager } from "./poManager";
 import { LocalizationChecker as ImportedLocalizationChecker } from "./localizationChecker";
 import { registerHoverProvider } from "./hoverProvider";
+import { registerCompletionProvider } from "./completionProvider";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -30,6 +31,8 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(localizationChecker);
 
   const hoverProvider = registerHoverProvider(context, localizationChecker, poManager);
+
+  const completionProvider = registerCompletionProvider(context, localizationChecker, poManager);
 
   const createConfigCmd = vscode.commands.registerCommand(
     "po-dotnet.createConfig",
@@ -95,7 +98,7 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
-  context.subscriptions.push(createConfigCmd, openPoCmd, hoverProvider);
+  context.subscriptions.push(createConfigCmd, openPoCmd, hoverProvider, completionProvider);
 }
 
 // This method is called when your extension is deactivated

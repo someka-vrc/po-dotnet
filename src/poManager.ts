@@ -129,4 +129,15 @@ export class POManager {
     }
     return results;
   }
+
+  // Return a set of all msgids currently cached across PO files
+  public getAllMsgids() {
+    const set = new Set<string>();
+    for (const [, map] of this.cache) {
+      for (const k of map.keys()) {
+        set.add(k);
+      }
+    }
+    return set;
+  }
 }
