@@ -140,5 +140,45 @@ export async function collectConfigObjectsForDocument(documentUri: vscode.Uri) {
     }
     dir = parent;
   }
+
+  // Also read settings from configuration (per-folder settings if present)
+  try {
+    const conf = vscode.workspace.getConfiguration("poDotnet", documentUri);
+    const s = conf.get<any>("config");
+    const addCfg = (cfg: any) => {
+      const sourceDirs: string[] = [];
+      const poDirs: string[] = [];
+      const localizeFuncs: string[] = [];
+      if (Array.isArray(cfg.sourceDirs)) {
+        for (const sd of cfg.sourceDirs) {
+          // resolve relative to workspace root
+          sourceDirs.push(path.resolve(ws.uri.fsPath, sd));
+        }
+      }
+      if (Array.isArray(cfg.poDirs)) {
+        for (const pd of cfg.poDirs) {
+          poDirs.push(path.resolve(ws.uri.fsPath, pd));
+        }
+      }
+      if (Array.isArray(cfg.localizeFuncs)) {
+        for (const f of cfg.localizeFuncs) {
+          if (typeof f === "string") {
+            localizeFuncs.push(f);
+          }
+        }
+      }
+      configs.push({ sourceDirs, poDirs, localizeFuncs, workspaceFolder: ws });
+    };
+    if (Array.isArray(s)) {
+      for (const cfg of s) {
+        addCfg(cfg);
+      }
+    } else if (s && typeof s === "object") {
+      addCfg(s);
+    }
+  } catch (e) {
+    // ignore config read errors
+  }
+
   return configs;
 }
