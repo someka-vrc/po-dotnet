@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://example.com/schemas/podotnetconfig-schema.json",
+  "title": "PO .NET configuration",
+  "description": "Configuration file schema for the PO .NET VS Code extension (podotnetconfig.json).",
+  "type": "object",
+  "properties": {
+    "sourceDirs": {
+      "type": "array",
+      "description": "List of directories containing .cs source files (relative to the configuration file). Subdirectories are included.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true,
+      "examples": ["."]
+    },
+    "poDirs": {
+      "type": "array",
+      "description": "List of directories containing .po files (relative to the configuration file). Subdirectories are included.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true,
+      "examples": ["./L10N"]
+    },
+    "localizeFuncs": {
+      "type": "array",
+      "description": "Names of localization functions to recognize in source code.",
+      "items": { "type": "string", "minLength": 1 },
+      "minItems": 1,
+      "uniqueItems": true,
+      "examples": ["G"]
+    }
+  },
+  "required": ["sourceDirs", "poDirs", "localizeFuncs"],
+  "additionalProperties": false,
+  "examples": [
+    {
+      "sourceDirs": ["."],
+      "poDirs": ["./L10N"],
+      "localizeFuncs": ["G"]
+    }
+  ]
+}
