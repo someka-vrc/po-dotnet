@@ -3,7 +3,7 @@ import * as path from "path";
 import { LocalizationChecker } from "./localizationChecker";
 import { POManager } from "./poManager";
 import { isInComment, extractFirstStringArgument } from "./utils";
-import { collectConfigsForDocument } from "./config";
+import { collectConfigsForDocument, collectConfigObjectsForDocument } from "./config";
 
 export function registerHoverProvider(
   context: vscode.ExtensionContext,
@@ -29,19 +29,23 @@ export function registerHoverProvider(
         const msgid = cached.msgid;
         const startPos = cached.range.start;
         const endPos = cached.range.end;
-        const cfg = await collectConfigsForDocument(document.uri);
-        if (cfg.sourceDirs.length === 0) {
+        const cfgObjs = await collectConfigObjectsForDocument(document.uri);
+        if (cfgObjs.length === 0) {
           return undefined;
         }
         const docPath = document.uri.fsPath;
-        const included = cfg.sourceDirs.some(
-          (sd) => docPath === sd || docPath.startsWith(sd + path.sep),
+        const matched = cfgObjs.filter((c) =>
+          c.sourceDirs.some((sd) => docPath === sd || docPath.startsWith(sd + path.sep)),
         );
-        if (!included) {
+        if (matched.length === 0) {
           return undefined;
         }
-        await poManager.ensureDirs(cfg.poDirs, cfg.workspaceFolder);
-        const entries = poManager.getTranslations(msgid);
+        // ensure PO dirs watched
+        for (const c of matched) {
+          await poManager.ensureDirs(c.poDirs, c.workspaceFolder);
+        }
+        const allowedPoDirs = Array.from(new Set(matched.flatMap((c) => c.poDirs)));
+        const entries = poManager.getTranslations(msgid, allowedPoDirs);
         const hoverLines: string[] = [];
         hoverLines.push("po-dotnet");
         if (entries.length === 0) {
@@ -102,19 +106,22 @@ export function registerHoverProvider(
                 if (!msgid) {
                   return undefined;
                 }
-                const cfg = await collectConfigsForDocument(document.uri);
-                if (cfg.sourceDirs.length === 0) {
+                const cfgObjs = await collectConfigObjectsForDocument(document.uri);
+                if (cfgObjs.length === 0) {
                   return undefined;
                 }
                 const docPath = document.uri.fsPath;
-                const included = cfg.sourceDirs.some(
-                  (sd) => docPath === sd || docPath.startsWith(sd + path.sep),
+                const matched = cfgObjs.filter((c) =>
+                  c.sourceDirs.some((sd) => docPath === sd || docPath.startsWith(sd + path.sep)),
                 );
-                if (!included) {
+                if (matched.length === 0) {
                   return undefined;
                 }
-                await poManager.ensureDirs(cfg.poDirs, cfg.workspaceFolder);
-                const entries = poManager.getTranslations(msgid);
+                for (const c of matched) {
+                  await poManager.ensureDirs(c.poDirs, c.workspaceFolder);
+                }
+                const allowedPoDirs = Array.from(new Set(matched.flatMap((c) => c.poDirs)));
+                const entries = poManager.getTranslations(msgid, allowedPoDirs);
                 const hoverLines: string[] = [];
                 hoverLines.push("po-dotnet");
                 if (entries.length === 0) {

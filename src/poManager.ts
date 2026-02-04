@@ -86,7 +86,13 @@ export class POManager {
     }
   }
 
-  public getEntryStatus(msgid: string) {
+  private pathIsUnder(child: string, parent: string) {
+    const c = path.normalize(path.resolve(child));
+    const p = path.normalize(path.resolve(parent));
+    return c === p || c.startsWith(p + path.sep);
+  }
+
+  public getEntryStatus(msgid: string, allowedDirs?: string[]) {
     const results: Array<{
       uri: vscode.Uri;
       relativePath: string;
@@ -96,6 +102,18 @@ export class POManager {
     }> = [];
     for (const [uriStr, map] of this.cache) {
       const uri = vscode.Uri.parse(uriStr);
+      if (allowedDirs && allowedDirs.length > 0) {
+        let ok = false;
+        for (const d of allowedDirs) {
+          if (this.pathIsUnder(uri.fsPath, d)) {
+            ok = true;
+            break;
+          }
+        }
+        if (!ok) {
+          continue;
+        }
+      }
       const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
       const relativePath = wsFolder
         ? path.relative(wsFolder.uri.fsPath, uri.fsPath)
@@ -109,7 +127,7 @@ export class POManager {
     return results;
   }
 
-  public getTranslations(msgid: string) {
+  public getTranslations(msgid: string, allowedDirs?: string[]) {
     const results: Array<{
       uri: vscode.Uri;
       relativePath: string;
@@ -117,9 +135,21 @@ export class POManager {
       line: number;
     }> = [];
     for (const [uriStr, map] of this.cache) {
+      const uri = vscode.Uri.parse(uriStr);
+      if (allowedDirs && allowedDirs.length > 0) {
+        let ok = false;
+        for (const d of allowedDirs) {
+          if (this.pathIsUnder(uri.fsPath, d)) {
+            ok = true;
+            break;
+          }
+        }
+        if (!ok) {
+          continue;
+        }
+      }
       const entry = map.get(msgid);
       if (entry && entry.translation && entry.translation.trim() !== "") {
-        const uri = vscode.Uri.parse(uriStr);
         const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
         const relativePath = wsFolder
           ? path.relative(wsFolder.uri.fsPath, uri.fsPath)
@@ -131,9 +161,22 @@ export class POManager {
   }
 
   // Return a set of all msgids currently cached across PO files
-  public getAllMsgids() {
+  public getAllMsgids(allowedDirs?: string[]) {
     const set = new Set<string>();
-    for (const [, map] of this.cache) {
+    for (const [uriStr, map] of this.cache) {
+      const uri = vscode.Uri.parse(uriStr);
+      if (allowedDirs && allowedDirs.length > 0) {
+        let ok = false;
+        for (const d of allowedDirs) {
+          if (this.pathIsUnder(uri.fsPath, d)) {
+            ok = true;
+            break;
+          }
+        }
+        if (!ok) {
+          continue;
+        }
+      }
       for (const k of map.keys()) {
         set.add(k);
       }

@@ -3,7 +3,7 @@ import * as path from "path";
 import { LocalizationChecker } from "./localizationChecker";
 import { POManager } from "./poManager";
 import { isInComment } from "./utils";
-import { collectConfigsForDocument } from "./config";
+import { collectConfigsForDocument, collectConfigObjectsForDocument } from "./config";
 
 function escapeForCSharpLiteral(s: string, verbatim: boolean) {
   if (verbatim) {
@@ -107,31 +107,40 @@ export function registerCompletionProvider(
           return undefined;
         }
 
-        const cfg = await collectConfigsForDocument(document.uri);
-        const funcs = cfg.localizeFuncs && cfg.localizeFuncs.length > 0 ? cfg.localizeFuncs : ["G"];
+        const cfgObjs = await collectConfigObjectsForDocument(document.uri);
+        if (cfgObjs.length === 0) {
+          return undefined;
+        }
+        const docPath = document.uri.fsPath;
+        const matched = cfgObjs.filter((c) =>
+          c.sourceDirs.some((sd) => docPath === sd || docPath.startsWith(sd + path.sep)),
+        );
+        if (matched.length === 0) {
+          return undefined;
+        }
+        const funcsSet = new Set<string>();
+        for (const c of matched) {
+          for (const f of c.localizeFuncs || []) {
+            funcsSet.add(f);
+          }
+        }
+        const funcs = funcsSet.size > 0 ? Array.from(funcsSet) : ["G"];
         if (!funcs.includes(funcName)) {
           return undefined;
         }
 
-        if (cfg.sourceDirs.length === 0) {
-          return undefined;
+        // ensure PO dirs watched
+        for (const c of matched) {
+          await poManager.ensureDirs(c.poDirs, c.workspaceFolder);
         }
-        const docPath = document.uri.fsPath;
-        const included = cfg.sourceDirs.some(
-          (sd) => docPath === sd || docPath.startsWith(sd + path.sep),
-        );
-        if (!included) {
-          return undefined;
-        }
-
-        await poManager.ensureDirs(cfg.poDirs, cfg.workspaceFolder);
+        const allowedPoDirs = Array.from(new Set(matched.flatMap((c) => c.poDirs)));
 
         // calculate prefix: from quoteIndex+1 to offset
         const prefixRaw = text.substring(quoteIndex + 1, offset);
         // For verbatim strings, quotes are represented as "" inside; we keep raw
 
         // collect msgids
-        const msgids = poManager.getAllMsgids();
+        const msgids = poManager.getAllMsgids(allowedPoDirs);
         if (!msgids || msgids.size === 0) {
           return undefined;
         }
@@ -170,7 +179,7 @@ export function registerCompletionProvider(
             continue;
           }
           const item = new vscode.CompletionItem(id, vscode.CompletionItemKind.Text);
-          const trans = poManager.getTranslations(id);
+          const trans = poManager.getTranslations(id, allowedPoDirs);
           if (trans && trans.length > 0) {
             const parts: string[] = [];
             const md = new vscode.MarkdownString("", true);

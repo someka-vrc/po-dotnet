@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { POManager } from "./poManager";
 import { extractFirstStringArgument } from "./utils";
+import { collectConfigObjectsForDocument } from "./config";
 
 export class LocalizationChecker implements vscode.Disposable {
   private diagnostics =
@@ -120,22 +121,31 @@ export class LocalizationChecker implements vscode.Disposable {
         const sourceDirs: string[] = [];
         const poDirs: string[] = [];
         const localizeFuncs: string[] = [];
-        if (Array.isArray(parsed.sourceDirs)) {
-          for (const s of parsed.sourceDirs) {
-            sourceDirs.push(path.resolve(dir, s));
-          }
-        }
-        if (Array.isArray(parsed.poDirs)) {
-          for (const p of parsed.poDirs) {
-            poDirs.push(path.resolve(dir, p));
-          }
-        }
-        if (Array.isArray(parsed.localizeFuncs)) {
-          for (const f of parsed.localizeFuncs) {
-            if (typeof f === "string") {
-              localizeFuncs.push(f);
+        const processCfg = (cfg: any) => {
+          if (Array.isArray(cfg.sourceDirs)) {
+            for (const s of cfg.sourceDirs) {
+              sourceDirs.push(path.resolve(dir, s));
             }
           }
+          if (Array.isArray(cfg.poDirs)) {
+            for (const p of cfg.poDirs) {
+              poDirs.push(path.resolve(dir, p));
+            }
+          }
+          if (Array.isArray(cfg.localizeFuncs)) {
+            for (const f of cfg.localizeFuncs) {
+              if (typeof f === "string") {
+                localizeFuncs.push(f);
+              }
+            }
+          }
+        };
+        if (Array.isArray(parsed.config)) {
+          for (const cfg of parsed.config) {
+            processCfg(cfg);
+          }
+        } else {
+          processCfg(parsed);
         }
         const ws = vscode.workspace.getWorkspaceFolder(cfgUri);
         if (!ws) {
@@ -215,12 +225,31 @@ export class LocalizationChecker implements vscode.Disposable {
     this.scanningDocs.add(uriStr);
     const text = document.getText();
     const ws = vscode.workspace.getWorkspaceFolder(document.uri);
-    let funcs: string[] = [];
-    if (ws) {
-      funcs = this.workspaceLocalizeFuncs.get(ws.uri.toString()) || [];
+    // Determine matching configs for this document so we can use only their poDirs and funcs
+    const cfgObjs = await collectConfigObjectsForDocument(document.uri);
+    const docPath = document.uri.fsPath;
+    const matchedCfgs = cfgObjs.filter((c) =>
+      c.sourceDirs.some((sd) => docPath === sd || docPath.startsWith(sd + path.sep)),
+    );
+
+    // If no config matches this document, do not scan — avoid cross-project fallbacks
+    if (matchedCfgs.length === 0) {
+      this.scanningDocs.delete(uriStr);
+      return;
     }
-    if (!funcs || funcs.length === 0) {
-      funcs = ["G"];
+
+    let funcs: string[] = [];
+    {
+      const set = new Set<string>();
+      for (const c of matchedCfgs) {
+        for (const f of c.localizeFuncs || []) {
+          set.add(f);
+        }
+      }
+      funcs = Array.from(set);
+      if (!funcs || funcs.length === 0) {
+        funcs = ["G"];
+      }
     }
     const escapeRegExp = (s: string) =>
       s.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
@@ -258,7 +287,20 @@ export class LocalizationChecker implements vscode.Disposable {
               ),
               msgid,
             });
-            const statuses = this.poManager.getEntryStatus(msgid);
+            // restrict search to poDirs corresponding to this document; if none, skip (no fallback)
+            const allowedPoDirs: string[] = [];
+            for (const c of matchedCfgs) {
+              for (const d of c.poDirs || []) {
+                if (!allowedPoDirs.includes(d)) {
+                  allowedPoDirs.push(d);
+                }
+              }
+            }
+            if (allowedPoDirs.length === 0) {
+              // no PO dirs associated with matched config — do not fallback to global search
+              break;
+            }
+            const statuses = this.poManager.getEntryStatus(msgid, allowedPoDirs);
             if (statuses.length === 0) {
               break;
             }
