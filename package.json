@@ -2,7 +2,7 @@
   "name": "po-dotnet",
   "displayName": "po-dotnet",
   "description": "show .po translation when hover on localize method in .NET project",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -18,7 +18,20 @@
     "onLanguage:csharp"
   ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "commands": [
+      {
+        "command": "po-dotnet.createConfig",
+        "title": "PO .NET: Create podotnetconfig.json",
+        "category": "PO .NET"
+      },
+      {
+        "command": "po-dotnet.openPoEntry",
+        "title": "PO .NET: Open PO entry",
+        "category": "PO .NET"
+      }
+    ]
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

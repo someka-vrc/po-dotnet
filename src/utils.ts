@@ -1,28 +1,32 @@
-export function parsePo(content: string): Map<string, string> {
-  const map = new Map<string, string>();
+export function parsePo(content: string): Map<string, {translation: string; line: number}> {
+  const map = new Map<string, {translation: string; line: number}>();
   const lines = content.split(/\r?\n/);
   let state: "none" | "msgid" | "msgstr" = "none";
   let msgidParts: string[] = [];
   let msgstrParts: string[] = [];
+  let msgidLine = 0;
 
   const flush = () => {
     if (msgidParts.length > 0) {
       const id = msgidParts.join("");
       const str = msgstrParts.join("");
-      map.set(unescapePo(id), unescapePo(str));
+      map.set(unescapePo(id), { translation: unescapePo(str), line: msgidLine });
     }
     msgidParts = [];
     msgstrParts = [];
     state = "none";
+    msgidLine = 0;
   };
 
-  for (let raw of lines) {
+  for (let idx = 0; idx < lines.length; idx++) {
+    const raw = lines[idx];
     const line = raw.trim();
     if (line.startsWith("msgid")) {
       if (state !== "none") {
         flush();
       }
       msgidParts = [extractQuoted(line)];
+      msgidLine = idx;
       state = "msgid";
     } else if (line.startsWith("msgstr")) {
       msgstrParts = [extractQuoted(line)];

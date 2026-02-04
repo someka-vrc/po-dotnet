@@ -12,7 +12,6 @@ export function registerHoverProvider(
 ) {
   return vscode.languages.registerHoverProvider("csharp", {
     async provideHover(document, position, token) {
-
       const text = document.getText();
       const offset = document.offsetAt(position);
 
@@ -23,6 +22,7 @@ export function registerHoverProvider(
       const cached = localizationChecker.getMsgidAt(document, offset);
       if (cached === "scanning") {
         const md = new vscode.MarkdownString();
+        md.isTrusted = true;
         md.appendMarkdown("po-dotnet\n\nScanning...");
         return new vscode.Hover(md);
       } else if (cached) {
@@ -52,21 +52,27 @@ export function registerHoverProvider(
             const fileName = path.basename(e.relativePath);
             const message = e.translation.replace(/`/g, "'");
             const folderPath = path.dirname(e.relativePath) || ".";
-            hoverLines.push(`- ${fileName}: \`${message}\` (${folderPath})`);
+            const fileLink = `[${fileName}](command:po-dotnet.openPoEntry?${encodeURIComponent(JSON.stringify([e.uri.toString(), e.line]))})`;
+            hoverLines.push(`- ${fileLink}: \`${message}\` (${folderPath})`);
           }
         }
-        const md = new vscode.MarkdownString();
+        const md = new vscode.MarkdownString("", true);
+        md.isTrusted = true;
         md.appendMarkdown(hoverLines.join("\n\n"));
         return new vscode.Hover(md, new vscode.Range(startPos, endPos));
       }
 
       const cfgForFuncs = await collectConfigsForDocument(document.uri);
-      const funcs = (cfgForFuncs.localizeFuncs && cfgForFuncs.localizeFuncs.length > 0)
-        ? cfgForFuncs.localizeFuncs
-        : [vscode.workspace.getConfiguration("poHover").get<string>("functionName", "G") || "G"];
+      const funcs =
+        cfgForFuncs.localizeFuncs && cfgForFuncs.localizeFuncs.length > 0
+          ? cfgForFuncs.localizeFuncs
+          : ["G"];
       const escapeRegExp = (s: string) =>
         s.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
-      const re = new RegExp(`\\b(?:${funcs.map(escapeRegExp).join("|")})\\b`, "g");
+      const re = new RegExp(
+        `\\b(?:${funcs.map(escapeRegExp).join("|")})\\b`,
+        "g",
+      );
       let match: RegExpExecArray | null;
       while ((match = re.exec(text)) !== null) {
         const matchIndex = match.index;
@@ -119,10 +125,14 @@ export function registerHoverProvider(
                     const fileName = path.basename(e.relativePath);
                     const message = e.translation.replace(/`/g, "'");
                     const folderPath = path.dirname(e.relativePath) || ".";
-                    hoverLines.push(`- ${fileName}: \`${message}\` (${folderPath})`);
+                    const fileLink = `[${fileName}](command:po-dotnet.openPoEntry?${encodeURIComponent(JSON.stringify([e.uri.toString(), e.line]))})`;
+                    hoverLines.push(
+                      `- ${fileLink}: \`${message}\` (${folderPath})`,
+                    );
                   }
                 }
-                const md = new vscode.MarkdownString();
+                const md = new vscode.MarkdownString("", true);
+                md.isTrusted = true;
                 md.appendMarkdown(hoverLines.join("\n\n"));
                 return new vscode.Hover(md, new vscode.Range(startPos, endPos));
               }

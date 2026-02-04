@@ -3,7 +3,7 @@ import * as path from "path";
 import { parsePo } from "./utils";
 
 export class POManager {
-  private cache = new Map<string, Map<string, string>>(); // uri -> map
+  private cache = new Map<string, Map<string, {translation: string; line: number}>>(); // uri -> map
   private watchers = new Map<string, vscode.FileSystemWatcher>(); // dir -> watcher
   private _onDidChange = new vscode.EventEmitter<void>();
   public readonly onDidChange = this._onDidChange.event;
@@ -92,6 +92,7 @@ export class POManager {
       relativePath: string;
       hasEntry: boolean;
       translation: string | undefined;
+      line?: number;
     }> = [];
     for (const [uriStr, map] of this.cache) {
       const uri = vscode.Uri.parse(uriStr);
@@ -99,9 +100,11 @@ export class POManager {
       const relativePath = wsFolder
         ? path.relative(wsFolder.uri.fsPath, uri.fsPath)
         : uri.fsPath;
-      const has = map.has(msgid);
-      const translation = has ? map.get(msgid) : undefined;
-      results.push({ uri, relativePath, hasEntry: has, translation });
+      const entry = map.get(msgid);
+      const has = !!entry;
+      const translation = has ? entry!.translation : undefined;
+      const line = has ? entry!.line : undefined;
+      results.push({ uri, relativePath, hasEntry: has, translation, line });
     }
     return results;
   }
@@ -111,16 +114,17 @@ export class POManager {
       uri: vscode.Uri;
       relativePath: string;
       translation: string;
+      line: number;
     }> = [];
     for (const [uriStr, map] of this.cache) {
-      const translation = map.get(msgid);
-      if (translation && translation.trim() !== "") {
+      const entry = map.get(msgid);
+      if (entry && entry.translation && entry.translation.trim() !== "") {
         const uri = vscode.Uri.parse(uriStr);
         const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
         const relativePath = wsFolder
           ? path.relative(wsFolder.uri.fsPath, uri.fsPath)
           : uri.fsPath;
-        results.push({ uri, relativePath, translation });
+        results.push({ uri, relativePath, translation: entry.translation, line: entry.line });
       }
     }
     return results;

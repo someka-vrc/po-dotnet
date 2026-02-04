@@ -16,14 +16,10 @@ export function activate(context: vscode.ExtensionContext) {
   // The command has been defined in the package.json file
   // Now provide the implementation of the command with registerCommand
   // The commandId parameter must match the command field in package.json
-  const disposable = vscode.commands.registerCommand(
-    "po-dotnet.helloWorld",
-    () => {
-      // The code you place here will be executed every time your command is executed
-      // Display a message box to the user
-      vscode.window.showInformationMessage("Hello World from po-dotnet!");
-    },
-  );
+  // command: create podotnetconfig.json next to active file
+  // register after localizationChecker is created so we can trigger a rescan
+  // (command is pushed into context.subscriptions further below)
+
 
   const poManager = new POManager(context);
   context.subscriptions.push({
@@ -35,7 +31,71 @@ export function activate(context: vscode.ExtensionContext) {
 
   const hoverProvider = registerHoverProvider(context, localizationChecker, poManager);
 
-  context.subscriptions.push(disposable, hoverProvider);
+  const createConfigCmd = vscode.commands.registerCommand(
+    "po-dotnet.createConfig",
+    async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage(
+          "No active editor. Open a file to create podotnetconfig.json in its folder.",
+        );
+        return;
+      }
+      const docUri = editor.document.uri;
+      const dir = path.dirname(docUri.fsPath);
+      const cfgUri = vscode.Uri.file(path.join(dir, "podotnetconfig.json"));
+      try {
+        // check existing
+        try {
+          await vscode.workspace.fs.stat(cfgUri);
+          // file exists — do not overwrite
+          vscode.window.showErrorMessage("podotnetconfig.json already exists in this folder.");
+          return;
+        } catch (e) {
+          // file does not exist -> continue
+        }
+
+        const defaultCfg = {
+          sourceDirs: ["."],
+          poDirs: ["./L10N"],
+          localizeFuncs: ["G"],
+        };
+        const content = JSON.stringify(defaultCfg, null, 2) + "\n";
+        await vscode.workspace.fs.writeFile(
+          cfgUri,
+          new TextEncoder().encode(content),
+        );
+        vscode.window.showInformationMessage(
+          "Created podotnetconfig.json",
+        );
+        try {
+          await localizationChecker.triggerScan();
+        } catch (_) {}
+      } catch (e) {
+        vscode.window.showErrorMessage(
+          "Failed to create podotnetconfig.json: " + String(e),
+        );
+      }
+    },
+  );
+
+  const openPoCmd = vscode.commands.registerCommand(
+    "po-dotnet.openPoEntry",
+    async (uriStr: string | vscode.Uri, line?: number) => {
+      try {
+        const uri = typeof uriStr === "string" ? vscode.Uri.parse(uriStr) : uriStr;
+        const doc = await vscode.workspace.openTextDocument(uri);
+        const editor = await vscode.window.showTextDocument(doc);
+        const pos = new vscode.Position(line || 0, 0);
+        editor.selection = new vscode.Selection(pos, pos);
+        editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
+      } catch (e) {
+        vscode.window.showErrorMessage("Failed to open PO file: " + String(e));
+      }
+    },
+  );
+
+  context.subscriptions.push(createConfigCmd, openPoCmd, hoverProvider);
 }
 
 // This method is called when your extension is deactivated

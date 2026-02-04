@@ -220,11 +220,7 @@ export class LocalizationChecker implements vscode.Disposable {
       funcs = this.workspaceLocalizeFuncs.get(ws.uri.toString()) || [];
     }
     if (!funcs || funcs.length === 0) {
-      const cfgFunc =
-        vscode.workspace
-          .getConfiguration("poHover")
-          .get<string>("functionName", "G") || "G";
-      funcs = [cfgFunc];
+      funcs = ["G"];
     }
     const escapeRegExp = (s: string) =>
       s.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
