@@ -7,7 +7,47 @@ export class POManager {
   private watchers = new Map<string, vscode.FileSystemWatcher>(); // dir -> watcher
   private _onDidChange = new vscode.EventEmitter<void>();
   public readonly onDidChange = this._onDidChange.event;
-  constructor(private context: vscode.ExtensionContext) {}
+  constructor(private context: vscode.ExtensionContext) {
+    // Watch open/changed/closed text documents for in-memory edits of .po files
+    // so that unsaved changes in editors are reflected in the cached PO entries.
+    this.context.subscriptions.push(
+      vscode.workspace.onDidOpenTextDocument((doc) => {
+        if (doc.uri.fsPath.endsWith(".po")) {
+          try {
+            const map = parsePo(doc.getText());
+            this.cache.set(doc.uri.toString(), map);
+            this._onDidChange.fire();
+          } catch (e) {
+            // ignore parse errors from in-progress edits
+          }
+        }
+      }),
+      vscode.workspace.onDidChangeTextDocument((e) => {
+        const doc = e.document;
+        if (doc.uri.fsPath.endsWith(".po")) {
+          try {
+            const map = parsePo(doc.getText());
+            this.cache.set(doc.uri.toString(), map);
+            this._onDidChange.fire();
+          } catch (err) {
+            // ignore parse errors while typing
+          }
+        }
+      }),
+      vscode.workspace.onDidSaveTextDocument((doc) => {
+        if (doc.uri.fsPath.endsWith(".po")) {
+          // ensure we parse the saved content (in case watcher missed it)
+          this.readAndParse(doc.uri);
+        }
+      }),
+      vscode.workspace.onDidCloseTextDocument((doc) => {
+        if (doc.uri.fsPath.endsWith(".po")) {
+          // restore cache from disk (or delete) when editor is closed
+          this.readAndParse(doc.uri);
+        }
+      }),
+    );
+  }
 
   public dispose() {
     for (const w of this.watchers.values()) {
