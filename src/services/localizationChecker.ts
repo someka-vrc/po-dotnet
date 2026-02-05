@@ -19,6 +19,10 @@ export class LocalizationChecker implements vscode.Disposable {
     // workspace -> localize function names coming from podotnetconfig.json files
     private workspaceLocalizeFuncs = new Map<string, string[]>();
 
+    // pending configs per workspace for deferred unused diagnostics computation
+    private pendingCfgs = new Map<string, { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder }[]>();
+    private computeTimers = new Map<string, NodeJS.Timeout>();
+
     constructor(
       private context: vscode.ExtensionContext,
       private poManager: POManager,
@@ -44,6 +48,19 @@ export class LocalizationChecker implements vscode.Disposable {
                 if (allSourceDirs.length > 0) {
                   console.log(`po-dotnet: PO changed ${uri.fsPath}, scanning ${allSourceDirs.length} source dirs`);
                   await this.scanDirs(allSourceDirs, cfgs);
+                  // Build cfgsByWorkspace map for targeted diagnostics computation
+                  const cfgsByWorkspace = new Map<string, { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder }[]>();
+                  for (const c of cfgs) {
+                    const key = c.workspaceFolder && c.workspaceFolder.uri ? c.workspaceFolder.uri.toString() : "";
+                    if (!cfgsByWorkspace.has(key)) {
+                      cfgsByWorkspace.set(key, []);
+                    }
+                    cfgsByWorkspace.get(key)!.push(c as any);
+                  }
+                  // Schedule deferred computation per workspace (debounced)
+                  for (const [key, list] of cfgsByWorkspace) {
+                    this.scheduleComputeUnusedForWorkspace(key, list);
+                  }
                   return;
                 }
               }
@@ -73,6 +90,12 @@ export class LocalizationChecker implements vscode.Disposable {
     for (const d of this.disposables) {
       d.dispose();
     }
+    // clear any pending timers
+    for (const t of this.computeTimers.values()) {
+      clearTimeout(t as any);
+    }
+    this.computeTimers.clear();
+    this.pendingCfgs.clear();
   }
 
   private onDocumentChanged(document: vscode.TextDocument) {
@@ -304,6 +327,160 @@ export class LocalizationChecker implements vscode.Disposable {
         console.error("po-dotnet: error scanning document", uri.toString(), e);
       }
     }
+
+    // compute unused PO entry diagnostics (schedule per workspace so it's debounced)
+    for (const [key, list] of cfgsByWorkspace) {
+      this.scheduleComputeUnusedForWorkspace(key, list);
+    }
+
+  }
+
+  private scheduleComputeUnusedForWorkspace(
+    key: string,
+    cfgs: { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder }[],
+  ) {
+    // debounce to avoid frequent recomputation while typing
+    this.pendingCfgs.set(key, cfgs);
+    const existing = this.computeTimers.get(key);
+    if (existing) {
+      clearTimeout(existing as any);
+    }
+    const t = setTimeout(async () => {
+      const cfgList = this.pendingCfgs.get(key) || [];
+      const map = new Map<string, typeof cfgList>();
+      map.set(key, cfgList);
+      try {
+        await this.computeUnusedPoDiagnostics(map);
+      } catch (err) {
+        console.error("po-dotnet: error computing deferred PO diagnostics", err);
+      }
+      this.pendingCfgs.delete(key);
+      this.computeTimers.delete(key);
+    }, 300);
+    this.computeTimers.set(key, t);
+  }
+
+  private async computeUnusedPoDiagnostics(
+    cfgsByWorkspace: Map<string, { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder }[]>,
+  ) {
+    try {
+      // Collect diagnostics per PO file URI
+      const poDiags = new Map<string, vscode.Diagnostic[]>();
+      // Track which PO file URIs belong to the configs being processed to avoid touching unrelated files
+      const relevantPoUris = new Set<string>();
+
+      for (const [wsKey, cfgList] of cfgsByWorkspace) {
+        for (const cfg of cfgList) {
+          const allowedPoDirs = cfg.poDirs || [];
+          const allowedSourceDirs = cfg.sourceDirs || [];
+          try {
+            const msgids = this.poManager.getAllMsgids(allowedPoDirs);
+            for (const msgid of msgids) {
+              // Use existing getReferences (which respects allowedSourceDirs) to detect usage.
+              let refs = this.getReferences(msgid, allowedSourceDirs);
+              if (refs && refs.length > 0) {
+                continue;
+              }
+
+              // If no refs found, attempt a targeted scan of allowed source dirs and re-check (handles files outside workspace or not-yet-scanned files)
+              if (allowedSourceDirs && allowedSourceDirs.length > 0) {
+                try {
+                  // Ensure PO dirs are read/watched so POManager has entries
+                  try {
+                    await this.poManager.ensureDirs(allowedPoDirs, cfg.workspaceFolder);
+                  } catch (_) {
+                    // ignore
+                  }
+                  await this.scanDirs(allowedSourceDirs, cfgList);
+                } catch (e) {
+                  // ignore scanning errors
+                }
+
+                // Re-check references after scanning
+                refs = this.getReferences(msgid, allowedSourceDirs);
+                if (refs && refs.length > 0) {
+                  continue;
+                }
+              }
+
+              // No references found -> mark each PO entry for this msgid as unused (if it has translation)
+              const statuses = this.poManager.getEntryStatus(msgid, allowedPoDirs);
+              for (const s of statuses) {
+                if (!s.hasEntry) {
+                  continue;
+                }
+                if (!s.translation || s.translation.trim() === "") {
+                  // skip untranslated entries
+                  continue;
+                }
+                const uriStr = s.uri.toString();
+                relevantPoUris.add(uriStr);
+                try {
+                  const doc = await vscode.workspace.openTextDocument(s.uri);
+                  const lineNum = s.line || 0;
+                  let range: vscode.Range;
+                  try {
+                    const lineText = doc.lineAt(lineNum).text;
+                    const firstQuote = lineText.indexOf('"');
+                    let startCol = 0;
+                    let endCol = lineText.length;
+                    if (firstQuote >= 0) {
+                      const secondQuote = lineText.indexOf('"', firstQuote + 1);
+                      if (secondQuote > firstQuote) {
+                        startCol = firstQuote + 1;
+                        endCol = secondQuote;
+                      } else {
+                        startCol = firstQuote;
+                        endCol = firstQuote + 1;
+                      }
+                    }
+                    range = new vscode.Range(new vscode.Position(lineNum, startCol), new vscode.Position(lineNum, endCol));
+                  } catch (err) {
+                    range = new vscode.Range(new vscode.Position(lineNum, 0), new vscode.Position(lineNum, 0));
+                  }
+
+                  const displayKey = msgid.replace(/\s+/g, " ").trim();
+                  const truncated = displayKey.length > 40 ? displayKey.slice(0, 40) + "…" : displayKey;
+                  const message = `Unused PO entry '${truncated}'`;
+                  const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Information);
+                  diag.source = "po-dotnet";
+
+                  if (!poDiags.has(uriStr)) {
+                    poDiags.set(uriStr, []);
+                  }
+                  poDiags.get(uriStr)!.push(diag);
+                } catch (err) {
+                  // ignore errors opening po doc
+                }
+              }
+            }
+          } catch (err) {
+            console.error("po-dotnet: error while computing unused PO diagnostics", err);
+          }
+        }
+      }
+
+      // Apply diagnostics to PO files — only touch PO files that are relevant for the processed configs
+      try {
+        for (const uriStr of relevantPoUris) {
+          try {
+            const uri = vscode.Uri.parse(uriStr);
+            const diags = poDiags.get(uriStr) || [];
+            if (diags.length > 0) {
+              this.diagnostics.set(uri, diags);
+            } else {
+              this.diagnostics.delete(uri);
+            }
+          } catch (err) {
+            // ignore
+          }
+        }
+      } catch (err) {
+        console.error("po-dotnet: failed to apply PO diagnostics", err);
+      }
+    } catch (err) {
+      console.error("po-dotnet: failed to compute PO diagnostics", err);
+    }
   }
 
   private async scanDocument(
@@ -450,5 +627,22 @@ export class LocalizationChecker implements vscode.Disposable {
     // mark as scanned and clear scanning mark
     this.scannedDocs.add(uriStr);
     this.scanningDocs.delete(uriStr);
+
+    // schedule unused PO diagnostics recomputation for the workspace(s) that matched this doc
+    if (matchedCfgs.length > 0) {
+      const key = ws && ws.uri ? ws.uri.toString() : "";
+      // ensure workspaceFolder is non-null for the scheduled computation
+      const safeCfgs = matchedCfgs
+        .filter((c) => !!c.workspaceFolder)
+        .map((c) => ({
+          sourceDirs: c.sourceDirs,
+          poDirs: c.poDirs,
+          localizeFuncs: c.localizeFuncs,
+          workspaceFolder: c.workspaceFolder as vscode.WorkspaceFolder,
+        }));
+      if (safeCfgs.length > 0) {
+        this.scheduleComputeUnusedForWorkspace(key, safeCfgs);
+      }
+    }
   }
 }
