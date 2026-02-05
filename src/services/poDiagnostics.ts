@@ -24,7 +24,7 @@ export async function computeUnusedPoDiagnostics(
           const msgids = poManager.getAllMsgids(allowedPoDirs);
           for (const msgid of msgids) {
             // Skip header-like entries with empty msgid — they represent file metadata and should not be diagnosed as unused
-            if (msgid.trim() === "") {
+            if (msgid === "") {
               continue;
             }
 
@@ -61,7 +61,7 @@ export async function computeUnusedPoDiagnostics(
               if (!s.hasEntry) {
                 continue;
               }
-              if (!s.translation || s.translation.trim() === "") {
+              if (s.translation === undefined || s.translation === "") {
                 // skip untranslated entries
                 continue;
               }
@@ -91,7 +91,7 @@ export async function computeUnusedPoDiagnostics(
                   range = new vscode.Range(new vscode.Position(lineNum, 0), new vscode.Position(lineNum, 0));
                 }
 
-                const displayKey = msgid.replace(/\s+/g, " ").trim();
+                const displayKey = msgid.replace(/\s+/g, " ");
                 const truncated = displayKey.length > 40 ? displayKey.slice(0, 40) + "…" : displayKey;
                 const message = `Unused PO entry '${truncated}'`;
                 const diag = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Information);
@@ -130,7 +130,7 @@ export async function computeUnusedPoDiagnostics(
               }
               for (const [id, lines] of dupMap) {
                 if (lines.length > 1) {
-                  const displayKey = id.replace(/\s+/g, " ").trim();
+                  const displayKey = id.replace(/\s+/g, " ");
                   const truncated = displayKey.length > 40 ? displayKey.slice(0, 40) + "…" : displayKey;
                   for (let idx = 1; idx < lines.length; idx++) {
                     const lineNum = lines[idx];

@@ -10,8 +10,8 @@ export function parsePo(content: string): Map<string, {translation: string; line
     if (msgidParts.length > 0) {
       const id = msgidParts.join("");
       const str = msgstrParts.join("");
-      // Ignore header entries where both msgid and msgstr are empty (metadata header like "Language: ...")
-      if (!(id.trim() === "" && str.trim() === "")) {
+      // Ignore header entries where both msgid and msgstr are exactly empty (metadata header like "Language: ...")
+      if (!(id === "" && str === "")) {
         map.set(unescapePo(id), { translation: unescapePo(str), line: msgidLine });
       }
     }
@@ -23,26 +23,26 @@ export function parsePo(content: string): Map<string, {translation: string; line
 
   for (let idx = 0; idx < lines.length; idx++) {
     const raw = lines[idx];
-    const line = raw.trim();
-    if (line.startsWith("msgid")) {
+    const lineTrimmed = raw.trim();
+    if (lineTrimmed.startsWith("msgid")) {
       if (state !== "none") {
         flush();
       }
-      msgidParts = [extractQuoted(line)];
+      msgidParts = [extractQuoted(lineTrimmed)];
       msgidLine = idx;
       state = "msgid";
-    } else if (line.startsWith("msgstr")) {
-      msgstrParts = [extractQuoted(line)];
+    } else if (lineTrimmed.startsWith("msgstr")) {
+      msgstrParts = [extractQuoted(lineTrimmed)];
       state = "msgstr";
     } else {
-      const m = line.match(/^"(.*)"$/);
+      const m = raw.match(/^"(.*)"$/);
       if (m) {
         if (state === "msgid") {
           msgidParts.push(m[1]);
         } else if (state === "msgstr") {
           msgstrParts.push(m[1]);
         }
-      } else if (line === "") {
+      } else if (lineTrimmed === "") {
         if (state !== "none") {
           flush();
         }
@@ -67,8 +67,8 @@ export function parsePoEntries(content: string) {
     if (msgidParts.length > 0) {
       const id = msgidParts.join("");
       const str = msgstrParts.join("");
-      // Ignore header entries where both msgid and msgstr are empty (they serve as file metadata)
-      if (!(id.trim() === "" && str.trim() === "")) {
+      // Ignore header entries where both msgid and msgstr are exactly empty (they serve as file metadata)
+      if (!(id === "" && str === "")) {
         entries.push({ id: unescapePo(id), translation: unescapePo(str), line: msgidLine });
       }
     }
@@ -80,26 +80,26 @@ export function parsePoEntries(content: string) {
 
   for (let idx = 0; idx < lines.length; idx++) {
     const raw = lines[idx];
-    const line = raw.trim();
-    if (line.startsWith("msgid")) {
+    const lineTrimmed = raw.trim();
+    if (lineTrimmed.startsWith("msgid")) {
       if (state !== "none") {
         flushEntry();
       }
-      msgidParts = [extractQuoted(line)];
+      msgidParts = [extractQuoted(lineTrimmed)];
       msgidLine = idx;
       state = "msgid";
-    } else if (line.startsWith("msgstr")) {
-      msgstrParts = [extractQuoted(line)];
+    } else if (lineTrimmed.startsWith("msgstr")) {
+      msgstrParts = [extractQuoted(lineTrimmed)];
       state = "msgstr";
     } else {
-      const m = line.match(/^"(.*)"$/);
+      const m = raw.match(/^"(.*)"$/);
       if (m) {
         if (state === "msgid") {
           msgidParts.push(m[1]);
         } else if (state === "msgstr") {
           msgstrParts.push(m[1]);
         }
-      } else if (line === "") {
+      } else if (lineTrimmed === "") {
         if (state !== "none") {
           flushEntry();
         }

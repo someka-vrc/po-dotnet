@@ -113,12 +113,12 @@ export async function scanDocument(
             break;
           }
           const missingList = statuses
-            .filter((s) => !s.hasEntry || (s.translation !== undefined && s.translation.trim() === ""))
+            .filter((s) => !s.hasEntry || (s.translation !== undefined && s.translation === ""))
             .map((s) => s.relativePath);
           if (missingList.length > 0) {
             const startPos = document.positionAt(matchIndex);
             const endPos = document.positionAt(j + 1);
-            const displayKey = msgid.replace(/\s+/g, " ").trim();
+            const displayKey = msgid.replace(/\s+/g, " ");
             const truncatedKey = displayKey.length > 16 ? displayKey.slice(0, 16) + "…" : displayKey;
             const message = `Missing PO entries for '${truncatedKey}': ${missingList.join(", ")}`;
             const diag = new vscode.Diagnostic(new vscode.Range(startPos, endPos), message, vscode.DiagnosticSeverity.Warning);

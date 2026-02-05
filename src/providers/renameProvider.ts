@@ -40,7 +40,7 @@ export function registerRenameProvider(
       return res.range;
     },
     async provideRenameEdits(document, position, newName, token) {
-      if (!newName || newName.trim() === "") {
+      if (newName === undefined || newName.length === 0) {
         throw new Error("New name must be non-empty.");
       }
       const res = localizationService.getMsgidAtPosition(document, position);
@@ -173,7 +173,7 @@ export function registerRenameProvider(
           break;
         }
       }
-      if (!found || found.trim() === "") {
+      if (!found || found === "") {
         throw new Error("No msgid found at current position in PO file.");
       }
 
@@ -203,7 +203,7 @@ export function registerRenameProvider(
       return new vscode.Range(new vscode.Position(startLine, openIdx + 1), new vscode.Position(lastQuoteLine, lastQuoteIdx));
     },
     async provideRenameEdits(document, position, newName, token) {
-      if (!newName || newName.trim() === "") {
+      if (newName === undefined || newName.length === 0) {
         throw new Error("New name must be non-empty.");
       }
       const text = document.getText();
@@ -227,7 +227,7 @@ export function registerRenameProvider(
           break;
         }
       }
-      if (!found || found.trim() === "") {
+      if (!found || found === "") {
         throw new Error("No msgid found at current position in PO file.");
       }
       if (found === newName) {

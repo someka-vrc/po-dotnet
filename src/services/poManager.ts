@@ -203,7 +203,7 @@ export class POManager {
         }
       }
       const entry = map.get(msgid);
-      if (entry && entry.translation && entry.translation.trim() !== "") {
+      if (entry && entry.translation !== undefined && entry.translation !== "") {
         const wsFolder = vscode.workspace.getWorkspaceFolder(uri);
         const relativePath = wsFolder
           ? path.relative(wsFolder.uri.fsPath, uri.fsPath)

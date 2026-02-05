@@ -163,7 +163,7 @@ export function registerCompletionProvider(
             md.appendMarkdown("po-dotnet\n\n");
             for (const t of trans) {
               const fileName = path.basename(t.relativePath);
-              let message = t.translation.replace(/`/g, "'").replace(/\r?\n/g, " ").trim();
+              let message = t.translation.replace(/`/g, "'").replace(/\r?\n/g, " ");
               if (message.length > 160) {
                 message = message.slice(0, 159) + "…";
               }

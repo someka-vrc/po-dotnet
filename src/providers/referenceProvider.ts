@@ -32,7 +32,7 @@ export function registerReferenceProvider(
           break;
         }
       }
-      if (!found || found.trim() === "") {
+      if (!found || found === "") {
         vscode.window.showInformationMessage("No msgid found at current position in PO file.");
         return [] as vscode.Location[];
       }
