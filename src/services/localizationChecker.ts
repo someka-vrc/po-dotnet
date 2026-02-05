@@ -1,8 +1,8 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { POManager } from "./poManager";
-import { extractFirstStringArgument } from "./utils";
-import { collectConfigObjectsForDocument } from "./config";
+import { extractFirstStringArgument } from "../utils";
+import { collectConfigObjectsForDocument } from "../config";
 
 export class LocalizationChecker implements vscode.Disposable {
   private diagnostics =
@@ -91,10 +91,15 @@ export class LocalizationChecker implements vscode.Disposable {
     return results;
   }
 
-  public async scanDirs(dirs: string[]) {
+  public async scanDirs(
+    dirs: string[],
+    cfgs?: { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder | null }[],
+  ) {
+    console.log(`po-dotnet: scanDirs start for ${dirs.length} dirs:`, dirs);
     const seen = new Set<string>();
     const walk = async (dir: string) => {
       try {
+        console.log(`po-dotnet: walking directory: ${dir}`);
         const uri = vscode.Uri.file(dir);
         const entries = await vscode.workspace.fs.readDirectory(uri);
         for (const [name, type] of entries) {
@@ -102,12 +107,13 @@ export class LocalizationChecker implements vscode.Disposable {
           if (type === vscode.FileType.Directory) {
             await walk(childPath);
           } else if (type === vscode.FileType.File && childPath.endsWith(".cs")) {
+            console.log(`po-dotnet: found .cs file: ${childPath}`);
             const childUri = vscode.Uri.file(childPath);
             if (!seen.has(childUri.toString())) {
               seen.add(childUri.toString());
               try {
                 const doc = await vscode.workspace.openTextDocument(childUri);
-                await this.scanDocument(doc);
+                await this.scanDocument(doc, cfgs);
               } catch (e) {
                 console.error("po-dotnet: error scanning file", childPath, e);
               }
@@ -278,7 +284,10 @@ export class LocalizationChecker implements vscode.Disposable {
     }
   }
 
-  private async scanDocument(document: vscode.TextDocument) {
+  private async scanDocument(
+    document: vscode.TextDocument,
+    callerCfgs?: { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder | null }[],
+  ) {
     if (document.languageId !== "csharp") {
       return;
     }
@@ -287,17 +296,27 @@ export class LocalizationChecker implements vscode.Disposable {
     const text = document.getText();
     const ws = vscode.workspace.getWorkspaceFolder(document.uri);
     // Determine matching configs for this document so we can use only their poDirs and funcs
-    const cfgObjs = await collectConfigObjectsForDocument(document.uri);
+    let cfgObjs = await collectConfigObjectsForDocument(document.uri);
     const docPath = document.uri.fsPath;
-    const matchedCfgs = cfgObjs.filter((c) =>
+    let matchedCfgs = cfgObjs.filter((c) =>
       c.sourceDirs.some((sd) => docPath === sd || docPath.startsWith(sd + path.sep)),
     );
 
-    // If no config matches this document, do not scan — avoid cross-project fallbacks
+    // If no config matches this document from its own config lookup, try caller-provided configs (targeted scan)
+    if (matchedCfgs.length === 0 && callerCfgs && callerCfgs.length > 0) {
+      matchedCfgs = callerCfgs.filter((c) =>
+        c.sourceDirs.some((sd) => docPath === sd || docPath.startsWith(sd + path.sep)),
+      );
+    }
+
+    // If no config matches this document from its own config lookup, log and try caller-provided configs already handled above.
     if (matchedCfgs.length === 0) {
+      console.log(`po-dotnet: scanDocument ${docPath} - no matching config found (callerCfgs present: ${!!callerCfgs && callerCfgs.length > 0})`);
       this.scanningDocs.delete(uriStr);
       return;
     }
+
+    console.log(`po-dotnet: scanDocument ${docPath} matched ${matchedCfgs.length} config(s):`, matchedCfgs.map((c) => ({ sourceDirs: c.sourceDirs.length, poDirs: c.poDirs.length })));
 
     let funcs: string[] = [];
     {
@@ -398,9 +417,16 @@ export class LocalizationChecker implements vscode.Disposable {
     } else {
       this.diagnostics.delete(document.uri);
     }
-    this.docMsgids.set(uriStr, entries);
-    console.log(`po-dotnet: scanned ${document.uri.fsPath}, found ${entries.length} msgid entries:`, entries.map((e) => e.msgid));
-    this.scanningDocs.delete(uriStr);
+
+    // store found msgids for this document so references can be resolved
+    if (entries.length > 0) {
+      this.docMsgids.set(uriStr, entries);
+    } else {
+      this.docMsgids.delete(uriStr);
+    }
+
+    // mark as scanned and clear scanning mark
     this.scannedDocs.add(uriStr);
+    this.scanningDocs.delete(uriStr);
   }
 }

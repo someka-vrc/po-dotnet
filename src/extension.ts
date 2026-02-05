@@ -2,8 +2,8 @@
 // Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
 import * as path from "path";
-import { POManager } from "./poManager";
-import { LocalizationChecker as ImportedLocalizationChecker } from "./localizationChecker";
+import { POManager } from "./services/poManager";
+import { LocalizationChecker as ImportedLocalizationChecker } from "./services/localizationChecker";
 import { POService } from "./services/poService";
 import { LocalizationService } from "./services/localizationService";
 import { registerHoverProvider } from "./providers/hoverProvider";

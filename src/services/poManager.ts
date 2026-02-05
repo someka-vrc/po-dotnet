@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import * as path from "path";
-import { parsePo } from "./utils";
+import { parsePo } from "../utils";
 
 export class POManager {
   private cache = new Map<string, Map<string, {translation: string; line: number}>>(); // uri -> map

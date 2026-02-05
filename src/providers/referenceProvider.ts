@@ -41,9 +41,11 @@ export function registerReferenceProvider(
       const cfgObjs = await collectConfigObjectsForDocument(document.uri);
       const poPath = document.uri.fsPath;
       const allowedSourceDirs: string[] = [];
+      const allowedCfgs: typeof cfgObjs = [];
       for (const c of cfgObjs) {
         for (const pd of c.poDirs || []) {
           if (poPath === pd || poPath.startsWith(pd + path.sep)) {
+            allowedCfgs.push(c);
             for (const sd of c.sourceDirs || []) {
               if (!allowedSourceDirs.includes(sd)) {
                 allowedSourceDirs.push(sd);
@@ -64,7 +66,16 @@ export function registerReferenceProvider(
       if (!refs || refs.length === 0) {
         if (allowedSourceDirs && allowedSourceDirs.length > 0) {
           try {
-            await localizationService.scanDirs(allowedSourceDirs);
+            // Ensure PO dirs are read and watched so POManager cache contains the msgid
+            for (const c of allowedCfgs) {
+              try {
+                await poService.ensureDirs(c.poDirs || [], c.workspaceFolder);
+              } catch (_) {
+                // ignore per-config errors
+              }
+            }
+            // Now scan source dirs using provided configs
+            await localizationService.scanDirs(allowedSourceDirs, allowedCfgs);
           } catch (e) {
             // ignore
           }

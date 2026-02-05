@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { LocalizationChecker } from "../localizationChecker";
+import { LocalizationChecker } from "./localizationChecker";
 import { collectConfigObjectsForDocument } from "../config";
 import * as path from "path";
 
@@ -35,7 +35,10 @@ export class LocalizationService {
     return await this.checker.triggerScan();
   }
 
-  public async scanDirs(dirs: string[]) {
-    return await this.checker.scanDirs(dirs);
+  public async scanDirs(
+    dirs: string[],
+    cfgs?: { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder | null }[],
+  ) {
+    return await this.checker.scanDirs(dirs, cfgs);
   }
 }
