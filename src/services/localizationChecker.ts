@@ -46,7 +46,6 @@ export class LocalizationChecker implements vscode.Disposable {
                 const dirs = cfgs.reduce((acc: string[], c) => acc.concat(c.sourceDirs || []), [] as string[]);
                 const allSourceDirs = Array.from(new Set(dirs));
                 if (allSourceDirs.length > 0) {
-                  console.log(`po-dotnet: PO changed ${uri.fsPath}, scanning ${allSourceDirs.length} source dirs`);
                   await this.scanDirs(allSourceDirs, cfgs);
                   // Build cfgsByWorkspace map for targeted diagnostics computation
                   const cfgsByWorkspace = new Map<string, { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder }[]>();
@@ -132,7 +131,6 @@ export class LocalizationChecker implements vscode.Disposable {
         }
       }
     }
-    console.log(`po-dotnet: getReferences for '${msgid}' -> ${results.length} results`);
     return results;
   }
 
@@ -140,11 +138,9 @@ export class LocalizationChecker implements vscode.Disposable {
     dirs: string[],
     cfgs?: { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder | null }[],
   ) {
-    console.log(`po-dotnet: scanDirs start for ${dirs.length} dirs:`, dirs);
     const seen = new Set<string>();
     const walk = async (dir: string) => {
       try {
-        console.log(`po-dotnet: walking directory: ${dir}`);
         const uri = vscode.Uri.file(dir);
         const entries = await vscode.workspace.fs.readDirectory(uri);
         for (const [name, type] of entries) {
@@ -152,7 +148,6 @@ export class LocalizationChecker implements vscode.Disposable {
           if (type === vscode.FileType.Directory) {
             await walk(childPath);
           } else if (type === vscode.FileType.File && childPath.endsWith(".cs")) {
-            console.log(`po-dotnet: found .cs file: ${childPath}`);
             const childUri = vscode.Uri.file(childPath);
             if (!seen.has(childUri.toString())) {
               seen.add(childUri.toString());
@@ -172,7 +167,6 @@ export class LocalizationChecker implements vscode.Disposable {
     for (const d of dirs) {
       await walk(d);
     }
-    console.log(`po-dotnet: scanDirs completed for ${dirs.length} dirs`);
   }
 
   public getMsgidAt(
@@ -318,7 +312,6 @@ export class LocalizationChecker implements vscode.Disposable {
       }
     }
 
-    console.log(`po-dotnet: scanAll will scan ${toScan.length} documents:`, toScan.map((u) => u.fsPath));
     for (const uri of toScan) {
       try {
         const doc = await vscode.workspace.openTextDocument(uri);
@@ -579,12 +572,9 @@ export class LocalizationChecker implements vscode.Disposable {
 
     // If no config matches this document from its own config lookup, log and try caller-provided configs already handled above.
     if (matchedCfgs.length === 0) {
-      console.log(`po-dotnet: scanDocument ${docPath} - no matching config found (callerCfgs present: ${!!callerCfgs && callerCfgs.length > 0})`);
       this.scanningDocs.delete(uriStr);
       return;
     }
-
-    console.log(`po-dotnet: scanDocument ${docPath} matched ${matchedCfgs.length} config(s):`, matchedCfgs.map((c) => ({ sourceDirs: c.sourceDirs.length, poDirs: c.poDirs.length })));
 
     let funcs: string[] = [];
     {

@@ -97,7 +97,6 @@ export function registerReferenceProvider(
       }
 
       if (!refs || refs.length === 0) {
-        console.log(`po-dotnet: No references found for '${found}'. Allowed source dirs:`, allowedSourceDirs);
         vscode.window.showInformationMessage(`No references found for '${found}'.`);
         return [] as vscode.Location[];
       }
