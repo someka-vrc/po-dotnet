@@ -10,6 +10,7 @@ import { registerHoverProvider } from "./providers/hoverProvider";
 import { registerCompletionProvider } from "./providers/completionProvider";
 import { registerDefinitionProvider } from "./providers/definitionProvider";
 import { registerReferenceProvider } from "./providers/referenceProvider";
+import { registerRenameProvider } from "./providers/renameProvider";
 
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -40,6 +41,7 @@ export function activate(context: vscode.ExtensionContext) {
   const completionProvider = registerCompletionProvider(context, localizationService, poService);
   const definitionProvider = registerDefinitionProvider(context, localizationService, poService);
   const referenceProvider = registerReferenceProvider(context, localizationService, poService);
+  const renameProvider = registerRenameProvider(context, localizationService, poService);
 
   const createConfigCmd = vscode.commands.registerCommand(
     "po-dotnet.createConfig",
@@ -105,7 +107,7 @@ export function activate(context: vscode.ExtensionContext) {
     },
   );
 
-  context.subscriptions.push(createConfigCmd, openPoCmd, hoverProvider, completionProvider, definitionProvider, referenceProvider);
+  context.subscriptions.push(createConfigCmd, openPoCmd, hoverProvider, completionProvider, definitionProvider, referenceProvider, renameProvider);
 }
 
 // This method is called when your extension is deactivated
