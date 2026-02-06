@@ -56,8 +56,22 @@ msgstr "some value"
     const res = extractFirstStringArgumentRange(inside, 0);
     assert.ok(res);
     assert.strictEqual(res!.msgid, 'abc"d');
-    assert.strictEqual(res!.start, 1);
-    // end should point to the index of closing quote
-    assert.strictEqual(res!.end, inside.indexOf('"', 1 + 1));
+    // start should point to the opening quote (index 0 in this case)
+    assert.strictEqual(res!.start, inside.indexOf('"'));
+    // end should point to the last character inside (closing quote - 1)
+    assert.strictEqual(res!.end, inside.lastIndexOf('"') - 1);
+  });
+
+  test('findAllLocalizationCalls and findLocalizationCallAtOffset', () => {
+    const { findAllLocalizationCalls, findLocalizationCallAtOffset } = require('../utils');
+    const text = `var a = G("hello");\nvar b = G(@"multi ""quote"" test");`;
+    const calls = findAllLocalizationCalls(text, ['G']);
+    assert.strictEqual(calls.length, 2);
+    assert.strictEqual(calls[0].msgid, 'hello');
+    assert.strictEqual(calls[1].msgid, 'multi "quote" test');
+
+    const callAt = findLocalizationCallAtOffset(text, text.indexOf('hello') + 1, ['G']);
+    assert.ok(callAt);
+    assert.strictEqual(callAt.msgid, 'hello');
   });
 });

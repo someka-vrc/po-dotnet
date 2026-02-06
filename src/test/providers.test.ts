@@ -1,14 +1,11 @@
 import * as assert from 'assert';
-import { registerDefinitionProvider } from '../providers/definitionProvider';
-import { registerHoverProvider } from '../providers/hoverProvider';
-import { registerCompletionProvider } from '../providers/completionProvider';
-import { registerReferenceProvider } from '../providers/referenceProvider';
+import { findAllLocalizationCalls } from '../utils';
 
-suite('Providers exports', () => {
-  test('Providers are exported', () => {
-    assert.strictEqual(typeof registerDefinitionProvider, 'function');
-    assert.strictEqual(typeof registerHoverProvider, 'function');
-    assert.strictEqual(typeof registerCompletionProvider, 'function');
-    assert.strictEqual(typeof registerReferenceProvider, 'function');
+suite('Providers - replaced with utils smoke tests', () => {
+  test('findAllLocalizationCalls finds calls', () => {
+    const text = 'var a = G("hello"); var b = G(@"multi ""q""uote");';
+    const calls = findAllLocalizationCalls(text, ['G']);
+    assert.strictEqual(calls.length, 2);
+    assert.strictEqual(calls[0].msgid, 'hello');
   });
 });

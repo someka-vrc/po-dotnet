@@ -178,3 +178,58 @@ export async function collectConfigObjectsForDocument(documentUri: vscode.Uri) {
 
   return configs;
 }
+
+export async function collectAllConfigsInWorkspace() {
+  const cfgUris = await vscode.workspace.findFiles("**/podotnetconfig.json");
+  const cfgUrisTilde = await vscode.workspace.findFiles("**/podotnetconfig~.json");
+  const allCfgs = cfgUris.concat(cfgUrisTilde);
+  const cfgsByWorkspace = new Map<string, { sourceDirs: string[]; poDirs: string[]; localizeFuncs: string[]; workspaceFolder: vscode.WorkspaceFolder }[]>();
+  for (const cfgUri of allCfgs) {
+    const dir = path.dirname(cfgUri.fsPath);
+    try {
+      const bytes = await vscode.workspace.fs.readFile(cfgUri);
+      const content = new TextDecoder("utf-8").decode(bytes);
+      const parsed = JSON.parse(content);
+      const sourceDirs: string[] = [];
+      const poDirs: string[] = [];
+      const localizeFuncs: string[] = [];
+      const processCfg = (cfg: any) => {
+        if (Array.isArray(cfg.sourceDirs)) {
+          for (const s of cfg.sourceDirs) {
+            sourceDirs.push(path.resolve(dir, s));
+          }
+        }
+        if (Array.isArray(cfg.poDirs)) {
+          for (const p of cfg.poDirs) {
+            poDirs.push(path.resolve(dir, p));
+          }
+        }
+        if (Array.isArray(cfg.localizeFuncs)) {
+          for (const f of cfg.localizeFuncs) {
+            if (typeof f === "string") {
+              localizeFuncs.push(f);
+            }
+          }
+        }
+      };
+      if (Array.isArray(parsed.config)) {
+        for (const cfg of parsed.config) {
+          processCfg(cfg);
+        }
+      } else {
+        processCfg(parsed);
+      }
+      const ws = vscode.workspace.getWorkspaceFolder(cfgUri);
+      if (!ws) {
+        continue;
+      }
+      if (!cfgsByWorkspace.has(ws.uri.toString())) {
+        cfgsByWorkspace.set(ws.uri.toString(), []);
+      }
+      cfgsByWorkspace.get(ws.uri.toString())!.push({ sourceDirs, poDirs, localizeFuncs, workspaceFolder: ws });
+    } catch (e) {
+      // ignore
+    }
+  }
+  return cfgsByWorkspace;
+}

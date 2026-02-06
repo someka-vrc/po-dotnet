@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { POManager } from "./poManager";
 import { extractFirstStringArgument, extractFirstStringArgumentRange } from "../utils";
-import { collectConfigObjectsForDocument } from "../config";
+import { collectConfigObjectsForDocument, collectAllConfigsInWorkspace } from "../config";
 import { computeUnusedPoDiagnostics as computeUnusedPoDiagnosticsImpl } from "./poDiagnostics"; 
 
 export class LocalizationChecker implements vscode.Disposable {
@@ -219,72 +219,8 @@ export class LocalizationChecker implements vscode.Disposable {
   }
 
   private async scanAll() {
-    const cfgUris = await vscode.workspace.findFiles(
-      "**/podotnetconfig.json",
-    );
-    const cfgUrisTilde = await vscode.workspace.findFiles(
-      "**/podotnetconfig~.json",
-    );
-    const allCfgs = cfgUris.concat(cfgUrisTilde);
     const toScan: vscode.Uri[] = [];
-    const cfgsByWorkspace = new Map<
-      string,
-      {
-        sourceDirs: string[];
-        poDirs: string[];
-        localizeFuncs: string[];
-        workspaceFolder: vscode.WorkspaceFolder;
-      }[]
-    >();
-    for (const cfgUri of allCfgs) {
-      const dir = path.dirname(cfgUri.fsPath);
-      try {
-        const bytes = await vscode.workspace.fs.readFile(cfgUri);
-        const content = new TextDecoder("utf-8").decode(bytes);
-        const parsed = JSON.parse(content);
-        const sourceDirs: string[] = [];
-        const poDirs: string[] = [];
-        const localizeFuncs: string[] = [];
-        const processCfg = (cfg: any) => {
-          if (Array.isArray(cfg.sourceDirs)) {
-            for (const s of cfg.sourceDirs) {
-              sourceDirs.push(path.resolve(dir, s));
-            }
-          }
-          if (Array.isArray(cfg.poDirs)) {
-            for (const p of cfg.poDirs) {
-              poDirs.push(path.resolve(dir, p));
-            }
-          }
-          if (Array.isArray(cfg.localizeFuncs)) {
-            for (const f of cfg.localizeFuncs) {
-              if (typeof f === "string") {
-                localizeFuncs.push(f);
-              }
-            }
-          }
-        };
-        if (Array.isArray(parsed.config)) {
-          for (const cfg of parsed.config) {
-            processCfg(cfg);
-          }
-        } else {
-          processCfg(parsed);
-        }
-        const ws = vscode.workspace.getWorkspaceFolder(cfgUri);
-        if (!ws) {
-          continue;
-        }
-        if (!cfgsByWorkspace.has(ws.uri.toString())) {
-          cfgsByWorkspace.set(ws.uri.toString(), []);
-        }
-        cfgsByWorkspace
-          .get(ws.uri.toString())!
-          .push({ sourceDirs, poDirs, localizeFuncs, workspaceFolder: ws });
-      } catch (e) {
-        // ignore
-      }
-    }
+    const cfgsByWorkspace = await collectAllConfigsInWorkspace();
 
     // collect localizeFuncs per workspace from config files
     for (const [wsKey, cfgList] of cfgsByWorkspace) {

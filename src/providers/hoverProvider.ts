@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { LocalizationService } from "../services/localizationService";
 import { POService } from "../services/poService";
-import { isInComment, extractFirstStringArgumentRange } from "../utils";
+import { isInComment, extractFirstStringArgumentRange, findLocalizationCallAtOffset } from "../utils";
 
 export function registerHoverProvider(
   context: vscode.ExtensionContext,
@@ -68,6 +68,42 @@ export function registerHoverProvider(
       const funcs = cfgForFuncs.localizeFuncs && cfgForFuncs.localizeFuncs.length > 0
         ? cfgForFuncs.localizeFuncs
         : ["G"];
+      // Try shared utility first (handles common cases and centralizes parsing logic)
+      const call = findLocalizationCallAtOffset(text, offset, funcs);
+      if (call) {
+        const msgid = call.msgid;
+        const matched = await localizationService.getAllowedPoDirsForDocument(document);
+        if (matched.length === 0) {
+          return undefined;
+        }
+        for (const c of matched) {
+          await poService.ensureDirs(c.poDirs, c.workspaceFolder);
+        }
+        const allowedPoDirs = Array.from(new Set(matched.flatMap((c) => c.poDirs)));
+        const entries = poService.getTranslations(msgid, allowedPoDirs);
+        const hoverLines: string[] = [];
+        hoverLines.push("po-dotnet");
+        if (entries.length === 0) {
+          hoverLines.push("- No entry");
+        } else {
+          hoverLines.push("");
+          for (const e of entries) {
+            const fileName = path.basename(e.relativePath);
+            const message = e.translation.replace(/`/g, "'");
+            const folderPath = path.dirname(e.relativePath) || ".";
+            const fileLink = `[${fileName}](command:po-dotnet.openPoEntry?${encodeURIComponent(JSON.stringify([e.uri.toString(), e.line]))})`;
+            hoverLines.push(
+              `- ${fileLink}: \`${message}\` (${folderPath})`,
+            );
+          }
+        }
+        const md = new vscode.MarkdownString("", true);
+        md.isTrusted = true;
+        md.appendMarkdown(hoverLines.join("\n\n"));
+        const startPos = document.positionAt(call.start);
+        const endPos = document.positionAt(call.end);
+        return new vscode.Hover(md, new vscode.Range(startPos, endPos));
+      }
       const escapeRegExp = (s: string) =>
         s.replace(/[.*+?^${}()|[\\\\]\\]/g, "\\$&");
       const re = new RegExp(

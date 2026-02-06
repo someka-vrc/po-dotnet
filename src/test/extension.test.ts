@@ -1,15 +1,15 @@
 import * as assert from 'assert';
+import { computeQuoteRangeFromDocLine } from '../services/poDiagnostics';
 
-// You can import and use all API from the 'vscode' module
-// as well as import your extension to test it
-import * as vscode from 'vscode';
-// import * as myExtension from '../../extension';
-
-suite('Extension Test Suite', () => {
-	vscode.window.showInformationMessage('Start all tests.');
-
-	test('Sample test', () => {
-		assert.strictEqual(-1, [1, 2, 3].indexOf(5));
-		assert.strictEqual(-1, [1, 2, 3].indexOf(0));
-	});
+suite('Helpers - quote range', () => {
+  test('computeQuoteRangeFromDocLine finds quote bounds', () => {
+    const fakeDoc: any = {
+      lineAt: (n: number) => ({ text: 'msgid "hello"' })
+    };
+    const range = computeQuoteRangeFromDocLine(fakeDoc as any, 0);
+    // start column should be index of first char inside quotes (7)
+    assert.strictEqual(range.start.character, 7); // start = firstQuote+1
+    // end column should be index of second quote
+    assert.ok(range.end.character > range.start.character);
+  });
 });

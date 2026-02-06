@@ -123,7 +123,7 @@ export function registerRenameProvider(
           // find opening quote in startLine
           const startLineText = lines[startLine];
           const openIdx = startLineText.indexOf('"');
-          if (openIdx < 0) continue;
+          if (openIdx < 0) {continue;}
           // find last quote in the msgid block (stop before msgstr line)
           let lastQuoteIdx = -1;
           let lastQuoteLine = startLine;
@@ -137,7 +137,7 @@ export function registerRenameProvider(
               lastQuoteLine = j;
             }
           }
-          if (lastQuoteIdx < 0) continue;
+          if (lastQuoteIdx < 0) {continue;}
           const range = new vscode.Range(new vscode.Position(startLine, openIdx + 1), new vscode.Position(lastQuoteLine, lastQuoteIdx));
           const newContent = escapeForPo(newName);
           edit.replace(e.uri, range, newContent);
@@ -280,13 +280,13 @@ export function registerRenameProvider(
               break;
             }
           }
-          if (idx === -1) continue;
+          if (idx === -1) {continue;}
           const startLine = entries2[idx].line;
           const endLine = idx + 1 < entries2.length ? entries2[idx + 1].line - 1 : doc.lineCount - 1;
           const lines = txt.split(/\r?\n/);
           const startLineText = lines[startLine];
           const openIdx = startLineText.indexOf('"');
-          if (openIdx < 0) continue;
+          if (openIdx < 0) {continue;}
           let lastQuoteIdx = -1;
           let lastQuoteLine = startLine;
           for (let j = startLine; j <= endLine; j++) {
@@ -299,7 +299,7 @@ export function registerRenameProvider(
               lastQuoteLine = j;
             }
           }
-          if (lastQuoteIdx < 0) continue;
+          if (lastQuoteIdx < 0) {continue;}
           const range = new vscode.Range(new vscode.Position(startLine, openIdx + 1), new vscode.Position(lastQuoteLine, lastQuoteIdx));
           const newContent = escapeForPo(newName);
           edit.replace(e.uri, range, newContent);

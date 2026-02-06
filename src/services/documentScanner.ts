@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import { collectConfigObjectsForDocument } from "../config";
-import { extractFirstStringArgumentRange } from "../utils";
+import { findAllLocalizationCalls } from "../utils";
 import { POManager } from "./poManager";
 
 export interface ScanHelpers {
@@ -62,72 +62,43 @@ export async function scanDocument(
     }
   }
 
-  const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&");
-  const re = new RegExp(`\\b(?:${funcs.map(escapeRegExp).join("|")})\\b`, "g");
-  let match: RegExpExecArray | null;
+  // Use shared utility to find localization calls
+  const calls = findAllLocalizationCalls(text, funcs);
   const diags: vscode.Diagnostic[] = [];
   const entries: Array<{ range: vscode.Range; msgid: string }> = [];
-  while ((match = re.exec(text)) !== null) {
-    const matchIndex = match.index;
-    let i = matchIndex + match[0].length;
-    while (i < text.length && /\s/.test(text[i])) {
-      i++;
-    }
-    if (i >= text.length || text[i] !== "(") {
-      continue;
-    }
-    let depth = 0;
-    let j = i;
-    for (; j < text.length; j++) {
-      const ch = text[j];
-      if (ch === "(") {
-        depth++;
-      } else if (ch === ")") {
-        depth--;
-        if (depth === 0) {
-          const inside = text.substring(i + 1, j);
-          const arg = extractFirstStringArgumentRange(inside, i + 1);
-          if (!arg) {
-            break;
-          }
-          entries.push({
-            range: new vscode.Range(document.positionAt(arg.start), document.positionAt(arg.end)),
-            msgid: arg.msgid,
-          });
-          const msgid = arg.msgid;
-          // restrict search to poDirs corresponding to this document; if none, skip (no fallback)
-          const allowedPoDirs: string[] = [];
-          for (const c of matchedCfgs) {
-            for (const d of c.poDirs || []) {
-              if (!allowedPoDirs.includes(d)) {
-                allowedPoDirs.push(d);
-              }
-            }
-          }
-          if (allowedPoDirs.length === 0) {
-            // no PO dirs associated with matched config — do not fallback to global search
-            break;
-          }
-          const statuses = helpers.poManager.getEntryStatus(msgid, allowedPoDirs);
-          if (statuses.length === 0) {
-            break;
-          }
-          const missingList = statuses
-            .filter((s) => !s.hasEntry || (s.translation !== undefined && s.translation === ""))
-            .map((s) => s.relativePath);
-          if (missingList.length > 0) {
-            const startPos = document.positionAt(matchIndex);
-            const endPos = document.positionAt(j + 1);
-            const displayKey = msgid.replace(/\s+/g, " ");
-            const truncatedKey = displayKey.length > 16 ? displayKey.slice(0, 16) + "…" : displayKey;
-            const message = `Missing PO entries for '${truncatedKey}': ${missingList.join(", ")}`;
-            const diag = new vscode.Diagnostic(new vscode.Range(startPos, endPos), message, vscode.DiagnosticSeverity.Warning);
-            diag.source = "po-dotnet";
-            diags.push(diag);
-          }
-          break;
+  for (const call of calls) {
+    entries.push({ range: new vscode.Range(document.positionAt(call.start), document.positionAt(call.end)), msgid: call.msgid });
+
+    // restrict search to poDirs corresponding to this document; if none, skip (no fallback)
+    const allowedPoDirs: string[] = [];
+    for (const c of matchedCfgs) {
+      for (const d of c.poDirs || []) {
+        if (!allowedPoDirs.includes(d)) {
+          allowedPoDirs.push(d);
         }
       }
+    }
+    if (allowedPoDirs.length === 0) {
+      // no PO dirs associated with matched config — do not fallback to global search
+      continue;
+    }
+
+    const statuses = helpers.poManager.getEntryStatus(call.msgid, allowedPoDirs);
+    if (statuses.length === 0) {
+      continue;
+    }
+    const missingList = statuses
+      .filter((s) => !s.hasEntry || (s.translation !== undefined && s.translation === ""))
+      .map((s) => s.relativePath);
+    if (missingList.length > 0) {
+      const startPos = document.positionAt(call.callStart);
+      const endPos = document.positionAt(call.callEnd);
+      const displayKey = call.msgid.replace(/\s+/g, " ");
+      const truncatedKey = displayKey.length > 16 ? displayKey.slice(0, 16) + "…" : displayKey;
+      const message = `Missing PO entries for '${truncatedKey}': ${missingList.join(", ")}`;
+      const diag = new vscode.Diagnostic(new vscode.Range(startPos, endPos), message, vscode.DiagnosticSeverity.Warning);
+      diag.source = "po-dotnet";
+      diags.push(diag);
     }
   }
   if (diags.length > 0) {
