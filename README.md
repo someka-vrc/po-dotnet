@@ -4,17 +4,17 @@ PO .NET is a Visual Studio Code extension that helps with localization in C# sou
 
 ## Features
 
-- When you hover over a localization function, the extension displays the translation from the .po files.
-- The hover text includes links and supports F12 (Go to Definition) to jump to the corresponding entry in the .po file.
-- You can use Find References (F12) on a .po file entry to jump to the corresponding usages in source code.
-- It detects untranslated keys and shows warnings (also displayed in the PROBLEMS tab).
-- Rename translation keys with F2.
-- Provides IntelliSense (completion) to suggest translation keys from .po files.
-- Supports per-folder settings via `podotnetconfig.json`.
+- Command `Create podotnetconfig.json`: Creates a `podotnetconfig.json` file in the folder of the currently edited file.
+- Command `Reload PO data (clear cache)`: Clears the PO data cache and reloads it.
+- Hover: Displays the translation from .po files on the arguments of localization functions and shows links to the corresponding entries.
+- Completion: Provides completion for msgid candidates in the first string argument of localization functions, displaying translation previews.
+- Go to Definition: Jumps to the msgid definition (within .po files).
+- Find References: Finds usages in source code from msgid in .po files.
+- Rename (F2): Renames msgid in C# source or .po files, updating .po and references in source code.
 
 ## Settings
 
-Placing the following configuration file (`podotnetconfig.json`) will affect all `.cs` files under that folder. If you add, change, or remove the configuration file, please restart the extension.
+Placing the following configuration file (`podotnetconfig.json`) will affect all `.cs` files under that folder. If you add, change, or remove the configuration file, please restart the extension or run `Reload PO data` command.
 
 ```json
 {
@@ -60,17 +60,17 @@ C# ソースコード上のローカライズを支援する拡張機能です�
 
 ## 機能
 
-- ローカライズ関数をホバーすると .po ファイルの翻訳内容を表示する。
-- ホバーテキストのリンクまたはF12キー(Go to Definition)から .po ファイルの該当エントリへジャンプする。
-- .po ファイルのエントリからF12キー(Go to References)でソースコードの該当箇所へジャンプする。
-- 未翻訳キーを検出し警告表示する（PROBLEMS タブにも表示する）。
-- F2キーで翻訳キーをリネームする。
-- インテリセンス（補完機能）で .po ファイルの翻訳キーを補完する。
-- フォルダごとの設定が可能（podotnetconfig.json）
+- コマンド `Create podotnetconfig.json`: 編集中ファイルのフォルダに `podotnetconfig.json` を作成する。
+- コマンド `Reload PO data (clear cache)`: PO データのキャッシュをクリアして再読み込みする。
+- ホバー: ローカライズ関数の引数上で `.po` の翻訳を表示し、該当エントリへのリンクを表示する。
+- 補完: ローカライズ関数の最初の文字列引数で `msgid` 候補を補完し、翻訳プレビューを表示する。
+- 定義へ移動（Go to Definition）: `msgid` の定義（`.po` 内）へジャンプする。
+- 参照の検索（Find References）: `.po` の `msgid` からソース内の使用箇所を検索する。
+- リネーム（F2）: C# ソースまたは `.po` 上で `msgid` をリネームすると、`.po` とソース中の参照を更新する。
 
 ## 設定
 
-以下の設定ファイル(`podotnetconfig.json`)を配置すると、そのフォルダ配下のすべての .cs ファイルに影響します。設定ファイルを追加・変更・削除した場合は拡張機能を再起動してください。
+以下の設定ファイル(`podotnetconfig.json`)を配置すると、そのフォルダ配下のすべての .cs ファイルに影響します。設定ファイルを追加・変更・削除した場合は拡張機能を再起動するか、`Reload PO data` コマンドを実行してください。
 
 ```json
 {
