@@ -102,11 +102,23 @@ export class TreeSitterSourceParser implements SourceParser {
     const captures = q.captures(tree.rootNode);
     // captures is array of { name, node }
     // We look for pairs where name is 'func-name' and 'args'
+    if (!funcs || funcs.length === 0) {
+      funcs = ["G"];
+    }
     for (let i = 0; i < captures.length; i++) {
       const cap: any = captures[i];
       if (cap.name === "func-name") {
         const funcNode = cap.node;
-        const funcName = funcNode.text;
+        let funcName = String(funcNode.text);
+        // normalize dotted/member names to last segment (e.g., i18n.t -> t)
+        if (funcName.indexOf('.') !== -1) {
+          funcName = funcName.split('.').pop() || funcName;
+        }
+        // filter by configured function names
+        if (!funcs.includes(funcName)) {
+          continue;
+        }
+
         // find following args capture
         const next: any | undefined = captures.slice(i + 1).find((c: any) => c.name === "args");
         if (!next) {
