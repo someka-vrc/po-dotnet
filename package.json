@@ -19,24 +19,82 @@
         "command": "po-support.helloWorld",
         "title": "Hello World"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "PO Support",
+      "properties": {
+        "po-support.targets": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "languages": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sourceDirs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "poDirs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "funcNames": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "description": "Per-target configuration for source/po directories and languages"
+        },
+        "po-support.wasmCdnBaseURL": {
+          "type": "string",
+          "default": "https://unpkg.com/tree-sitter-wasms@latest/out/",
+          "description": "Base URL for fetching Tree-sitter wasm binaries"
+        }
+      }
+    }
+  },
+  "mocha": {
+    "require": [
+      "source-map-support/register"
+    ],
+    "spec": "out/test/unit/**/*.test.js",
+    "ui": "tdd",
+    "timeout": 5000,
+    "color": true
   },
   "scripts": {
     "vscode:prepublish": "yarn run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "pretest": "yarn run compile && yarn run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "pretest:unit": "yarn run compile && yarn run lint",
+    "test:unit": "mocha out/test/unit/**/*.test.js",
+    "pretest:integration": "yarn run compile && yarn run lint && rimraf .vscode-test/user-data",
+    "test:integration": "vscode-test",
+    "test": "yarn test:unit && yarn test:integration"
   },
   "devDependencies": {
-    "@types/vscode": "^1.109.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",
-    "typescript-eslint": "^8.54.0",
-    "eslint": "^9.39.2",
-    "typescript": "^5.9.3",
+    "@types/vscode": "^1.109.0",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "eslint": "^9.39.2",
+    "mocha": "^11.7.5",
+    "rimraf": "^6.1.2",
+    "source-map-support": "^0.5.21",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.54.0"
   }
 }

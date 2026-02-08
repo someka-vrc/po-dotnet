@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "languages": ["javascript"],
+      "sourceDirs": ["src"],
+      "poDirs": ["locales"],
+      "funcNames": ["G"]
+    }
+  ]
+}

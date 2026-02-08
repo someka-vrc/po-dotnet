@@ -1,0 +1,10 @@
+{
+  "targets": [
+    {
+      "languages": ["python"],
+      "sourceDirs": ["."],
+      "poDirs": ["l10n"],
+      "funcNames": []
+    }
+  ]
+}
