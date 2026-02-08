@@ -12,6 +12,8 @@ suite('Settings model', () => {
     assert.ok(t.sourceDirs.length > 0);
     assert.ok(Array.isArray(t.poDirs));
     assert.ok(Array.isArray(t.funcNames));
+    // type default
+    assert.strictEqual((t as any).type, 'po');
   });
 
   test('normalizeTargets returns empty array for invalid input', () => {

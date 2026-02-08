@@ -1,6 +1,7 @@
 {
   "targets": [
     {
+      "type": "po",
       "languages": ["javascript"],
       "sourceDirs": ["src"],
       "poDirs": ["locales"],

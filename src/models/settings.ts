@@ -1,6 +1,9 @@
 export type Language = 'csharp' | 'javascript' | 'typescript' | 'python';
 
+export type TargetType = 'po';
+
 export interface Target {
+  type: TargetType;
   languages: Language[];
   sourceDirs: string[];
   poDirs: string[];
@@ -15,6 +18,7 @@ export interface Settings {
 export const DEFAULT_WASM_CDN = 'https://unpkg.com/tree-sitter-wasms@latest/out/';
 
 const DEFAULT_TARGET: Target = {
+  type: 'po',
   languages: ['csharp'],
   sourceDirs: ['.'],
   poDirs: ['./l10n'],
@@ -23,6 +27,7 @@ const DEFAULT_TARGET: Target = {
 
 export function normalizeTarget(raw: any): Target {
   return {
+    type: raw?.type === 'po' ? 'po' : DEFAULT_TARGET.type,
     languages: Array.isArray(raw?.languages) && raw.languages.length ? raw.languages : DEFAULT_TARGET.languages,
     sourceDirs: Array.isArray(raw?.sourceDirs) && raw.sourceDirs.length ? raw.sourceDirs : DEFAULT_TARGET.sourceDirs,
     poDirs: Array.isArray(raw?.poDirs) && raw.poDirs.length ? raw.poDirs : DEFAULT_TARGET.poDirs,

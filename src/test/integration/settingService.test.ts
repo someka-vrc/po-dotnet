@@ -52,6 +52,7 @@ suite("Setting Service Test Suite", () => {
           assert.ok(Array.isArray(settings.targets));
           assert.strictEqual(settings.targets.length, 1);
           assert.deepStrictEqual(settings.targets[0].languages, ["javascript"]);
+          assert.strictEqual(settings.targets[0].type, 'po');
         } finally {
           service.dispose();
 
@@ -81,6 +82,7 @@ suite("Setting Service Test Suite", () => {
           // set workspace configuration targets
           const configTargets = [
             {
+              type: 'po',
               languages: ["typescript"],
               sourceDirs: ["ts"],
               poDirs: ["locales"],
@@ -101,6 +103,8 @@ suite("Setting Service Test Suite", () => {
           assert.strictEqual(settings.targets.length, 2);
           assert.deepStrictEqual(settings.targets[0].languages, ["typescript"]);
           assert.deepStrictEqual(settings.targets[1].languages, ["javascript"]);
+          assert.strictEqual(settings.targets[0].type, 'po');
+          assert.strictEqual(settings.targets[1].type, 'po');
         } finally {
           // cleanup
           await vscode.workspace
@@ -144,7 +148,8 @@ suite("Setting Service Test Suite", () => {
                 // 明示的なアサーションを追加
                 assert.ok(
                   s.targets.length > 0 &&
-                    s.targets[0].languages.includes("python"),
+                    s.targets[0].languages.includes("python") &&
+                    s.targets[0].type === 'po',
                 );
                 clearTimeout(to);
                 resolve();
